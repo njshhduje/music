@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Quiz App</title>
+<title>Media App 完全版</title>
 
 <style>
 body { margin:0; font-family:sans-serif; background:#f5f5f5; }
@@ -41,6 +41,7 @@ body { margin:0; font-family:sans-serif; background:#f5f5f5; }
 .media-box h3 { margin-bottom:10px; }
 
 iframe { width:100%; height:315px; }
+video { width:100%; }
 audio { width:100%; }
 
 /* 入力 */
@@ -78,6 +79,7 @@ button { padding:8px; cursor:pointer; }
     <div class="input-area">
         <input id="videoTitle" placeholder="タイトル">
         <input id="videoUrl" placeholder="YouTube URL">
+        <input type="file" id="videoFile" accept="video/*">
         <button onclick="addVideo()">追加</button>
     </div>
     <div id="videoList"></div>
@@ -97,20 +99,15 @@ button { padding:8px; cursor:pointer; }
 
 <script>
 /* =======================
-   IndexedDB設定
+   IndexedDB
 ======================= */
 let db;
 const request = indexedDB.open("MediaAppDB", 1);
 
 request.onupgradeneeded = e => {
     db = e.target.result;
-
-    if (!db.objectStoreNames.contains("videos")) {
-        db.createObjectStore("videos", { keyPath: "id", autoIncrement: true });
-    }
-    if (!db.objectStoreNames.contains("audios")) {
-        db.createObjectStore("audios", { keyPath: "id", autoIncrement: true });
-    }
+    db.createObjectStore("videos", { keyPath: "id", autoIncrement: true });
+    db.createObjectStore("audios", { keyPath: "id", autoIncrement: true });
 };
 
 request.onsuccess = e => {
@@ -119,74 +116,59 @@ request.onsuccess = e => {
 };
 
 /* =======================
-   UI操作
+   UI
 ======================= */
 function toggleMenu() {
-    document.getElementById("sidebar").classList.toggle("active");
+    sidebar.classList.toggle("active");
 }
 function showSection(type) {
     document.querySelectorAll(".section").forEach(s => s.classList.remove("active"));
     document.getElementById(type).classList.add("active");
-    document.getElementById("sidebar").classList.remove("active");
+    sidebar.classList.remove("active");
 }
 
 /* =======================
-   動画（IndexedDB保存）
+   追加
 ======================= */
 function addVideo() {
-    const title = document.getElementById("videoTitle").value || "無題";
-    const url = document.getElementById("videoUrl").value;
+    const title = videoTitle.value || "無題";
+    const url = videoUrl.value;
+    const file = videoFile.files[0];
+
+    if (!url && !file) return alert("URLかファイルを入力して");
 
     const tx = db.transaction("videos", "readwrite");
-    const store = tx.objectStore("videos");
-
-    store.add({ title, url });
+    tx.objectStore("videos").add({ title, url, file });
     tx.oncomplete = render;
 }
 
-/* =======================
-   音声（ファイル保存）
-======================= */
 function addAudio() {
-    const title = document.getElementById("audioTitle").value || "無題";
-    const file = document.getElementById("audioFile").files[0];
+    const title = audioTitle.value || "無題";
+    const file = audioFile.files[0];
     if (!file) return alert("ファイル選択して");
 
     const tx = db.transaction("audios", "readwrite");
-    const store = tx.objectStore("audios");
-
-    store.add({ title, file });
+    tx.objectStore("audios").add({ title, file });
     tx.oncomplete = render;
 }
 
 /* =======================
-   削除
+   削除・編集
 ======================= */
 function deleteItem(type, id) {
-    const tx = db.transaction(type, "readwrite");
-    const store = tx.objectStore(type);
-
-    store.delete(id);
-    tx.oncomplete = render;
+    db.transaction(type, "readwrite").objectStore(type).delete(id).oncomplete = render;
 }
 
-/* =======================
-   編集
-======================= */
 function editItem(type, data) {
     const newTitle = prompt("タイトル変更", data.title);
     if (newTitle !== null) data.title = newTitle;
 
     if (type === "videos") {
-        const newUrl = prompt("URL変更", data.url);
+        const newUrl = prompt("URL変更", data.url || "");
         if (newUrl !== null) data.url = newUrl;
     }
 
-    const tx = db.transaction(type, "readwrite");
-    const store = tx.objectStore(type);
-
-    store.put(data);
-    tx.oncomplete = render;
+    db.transaction(type, "readwrite").objectStore(type).put(data).oncomplete = render;
 }
 
 /* =======================
@@ -198,59 +180,62 @@ function render() {
 }
 
 function renderVideos() {
-    const list = document.getElementById("videoList");
-    list.innerHTML = "";
+    videoList.innerHTML = "";
 
-    const tx = db.transaction("videos", "readonly");
-    const store = tx.objectStore("videos");
+    db.transaction("videos").objectStore("videos").openCursor().onsuccess = e => {
+        const c = e.target.result;
+        if (!c) return;
 
-    store.openCursor().onsuccess = e => {
-        const cursor = e.target.result;
-        if (cursor) {
-            const v = cursor.value;
+        const v = c.value;
+        const box = createBox(v.title, "videos", v);
+
+        // YouTube
+        if (v.url) {
             const id = extractYouTubeID(v.url);
-            if (!id) return cursor.continue();
-
-            const box = createBox(v.title, "videos", v);
-
-            const iframe = document.createElement("iframe");
-            iframe.src = `https://www.youtube.com/embed/${id}`;
-
-            box.insertBefore(iframe, box.querySelector(".actions"));
-            list.appendChild(box);
-
-            cursor.continue();
+            if (id) {
+                const iframe = document.createElement("iframe");
+                iframe.src = `https://www.youtube.com/embed/${id}`;
+                box.insertBefore(iframe, box.querySelector(".actions"));
+            }
         }
+
+        // ローカル動画
+        if (v.file) {
+            const video = document.createElement("video");
+            video.controls = true;
+            video.src = URL.createObjectURL(v.file);
+            box.insertBefore(video, box.querySelector(".actions"));
+        }
+
+        videoList.appendChild(box);
+        c.continue();
     };
 }
 
 function renderAudios() {
-    const list = document.getElementById("audioList");
-    list.innerHTML = "";
+    audioList.innerHTML = "";
 
-    const tx = db.transaction("audios", "readonly");
-    const store = tx.objectStore("audios");
+    db.transaction("audios").objectStore("audios").openCursor().onsuccess = e => {
+        const c = e.target.result;
+        if (!c) return;
 
-    store.openCursor().onsuccess = e => {
-        const cursor = e.target.result;
-        if (cursor) {
-            const a = cursor.value;
+        const a = c.value;
+        const box = createBox(a.title, "audios", a);
 
-            const box = createBox(a.title, "audios", a);
+        const audio = document.createElement("audio");
+        audio.controls = true;
+        audio.src = URL.createObjectURL(a.file);
 
-            const audio = document.createElement("audio");
-            audio.controls = true;
-            audio.src = URL.createObjectURL(a.file);
+        box.insertBefore(audio, box.querySelector(".actions"));
+        audioList.appendChild(box);
 
-            box.insertBefore(audio, box.querySelector(".actions"));
-            list.appendChild(box);
-
-            cursor.continue();
-        }
+        c.continue();
     };
 }
 
-/* 共通カード */
+/* =======================
+   共通UI
+======================= */
 function createBox(title, type, data) {
     const box = document.createElement("div");
     box.className = "media-box";
@@ -269,18 +254,17 @@ function createBox(title, type, data) {
     delBtn.textContent = "削除";
     delBtn.onclick = () => deleteItem(type, data.id);
 
-    actions.appendChild(editBtn);
-    actions.appendChild(delBtn);
-
-    box.appendChild(h3);
-    box.appendChild(actions);
+    actions.append(editBtn, delBtn);
+    box.append(h3, actions);
 
     return box;
 }
 
-/* YouTube ID取得 */
+/* =======================
+   YouTube対応（完全版）
+======================= */
 function extractYouTubeID(url) {
-    const reg = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/live\/)([^&?/]+)/;
+    const reg = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/live\/|youtube\.com\/shorts\/)([^&?/]+)/;
     const m = url.match(reg);
     return m ? m[1] : null;
 }
