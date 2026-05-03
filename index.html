@@ -280,7 +280,7 @@ function createBox(title, type, data) {
 
 /* YouTube ID取得 */
 function extractYouTubeID(url) {
-    const reg = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/;
+    const reg = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/live\/)([^&?/]+)/;
     const m = url.match(reg);
     return m ? m[1] : null;
 }
