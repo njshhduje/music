@@ -410,18 +410,6 @@ function renderVideos(){
     };
 }
 
-        // ローカル動画
-        if (v.file) {
-            const video = document.createElement("video");
-            video.controls = true;
-            video.src = URL.createObjectURL(v.file);
-            box.insertBefore(video, box.querySelector(".actions"));
-        }
-
-        videoList.appendChild(box);
-        c.continue();
-    };
-}
 
 function renderAudios(){
 
