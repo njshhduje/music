@@ -208,6 +208,17 @@ audio{
 </div>
 
 <script>
+const sidebar = document.getElementById("sidebar");
+
+const videoTitle = document.getElementById("videoTitle");
+const videoUrl = document.getElementById("videoUrl");
+const videoFile = document.getElementById("videoFile");
+
+const audioTitle = document.getElementById("audioTitle");
+const audioFile = document.getElementById("audioFile");
+
+const videoList = document.getElementById("videoList");
+const audioList = document.getElementById("audioList");
 /* =======================
    IndexedDB
 ======================= */
@@ -367,8 +378,14 @@ function appendAudio(a){
 /* =======================
    削除・編集
 ======================= */
-function deleteItem(type, id) {
-    db.transaction(type, "readwrite").objectStore(type).delete(id).oncomplete = render;
+function deleteItem(type,id){
+
+    const tx =
+        db.transaction(type,"readwrite");
+
+    tx.objectStore(type).delete(id);
+
+    tx.oncomplete = () => render();
 }
 
 function editItem(type, data) {
@@ -380,7 +397,12 @@ function editItem(type, data) {
         if (newUrl !== null) data.url = newUrl;
     }
 
-    db.transaction(type, "readwrite").objectStore(type).put(data).oncomplete = render;
+   const tx =
+    db.transaction(type,"readwrite");
+
+tx.objectStore(type).put(data);
+
+tx.oncomplete = () => render();
 }
 
 /* =======================
